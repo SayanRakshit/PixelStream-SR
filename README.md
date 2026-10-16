@@ -14,6 +14,7 @@ Most video diffusion models run inside a VAE latent space. The VAE adds decode l
 * **Clean-pixel prediction (x-prediction) flow matching** on the HR − bicubic residual with 8×8 pixel patches → **one Euler step is already sharp**.
 * **Representation alignment in pixel space**: a mid-layer of the DiT is aligned to frozen DINOv2 tokens during training (zero inference cost).
 * **Shared-noise streaming**: reusing one noise seed across frames removes most diffusion flicker for free.
+* **Beats a latent (VAE) DiT of the same size and recipe by +2.3 dB at 3.4× lower latency** — at 128 px the VAE's own reconstruction ceiling (27.96 dB) is already below our 1-step result.
 
 | | PSNR↑ | SSIM↑ | LPIPS↓ | ms / frame (T4) |
 |---|---|---|---|---|
@@ -56,6 +57,7 @@ Input: LR frame bicubic-upsampled to 128 px (3 ch) + optional previous output (3
 4. ~1 h 15 min later: `summary.md`, `qualitative.png`, `demo_1step.mp4/.gif`, `demo_4step.mp4/.gif`, `results.json`, `video_results.json` are in `MyDrive/pixelstream_final/`.
 5. Optional: cell 11 super-resolves a face video you upload (1 step + shared noise); cell 13 reproduces the 96-frame drift analysis.
 6. Re-running the notebook does not retrain: cell 7 finds the finished checkpoint and skips straight to evaluation (~8 min).
+7. Cell 14 trains the equal-size latent-DiT baseline on SD-VAE latents and prints the pixel-vs-latent table (~2 h on a T4).
 
 Ablations are flags in cell 2: `USE_REPA`, `PREV_KEEP_P`, `PREV_MOTION`, `RES_SCALE`, `DEGRADE`, `PATCH`; the step count and noise policy are arguments of `sample` / `stream_sr`.
 
@@ -70,11 +72,30 @@ Same recipe, `USE_REPA = False` (10k steps, T4):
 
 PSNR/SSIM are unchanged; LPIPS is consistently better with alignment at every step count (≈6–7 % relative at 2–8 steps). The effect is real but small: in a strongly conditioned task like SR the LR input already carries the structure a latent (or DINO) would supply, so alignment mainly improves the stochastic texture. We expect a larger effect for weakly conditioned generation and at higher resolution. Training cost: one frozen DINOv2-S forward per batch (~20 % slower); zero cost at inference (the alignment head is dropped). Video results with shared noise are identical across the two runs (3.63 / 28.16 vs 3.71 / 28.13).
 
+## Pixel space vs latent space, same transformer
+
+The same DiT (28M params, 256 tokens, same x-prediction/residual flow, REPA loss, steps and schedule) trained on SD-VAE latents (`stabilityai/sd-vae-ft-mse`, 128 px → 16×16×4) instead of pixels. Latency includes the VAE encode/decode. "VAE ceiling" = ground truth passed through the VAE alone.
+
+| | PSNR↑ | SSIM↑ | LPIPS↓ | ms/frame (T4) |
+|---|---|---|---|---|
+| bicubic ×4 | 26.26 | 0.806 | 0.318 | – |
+| VAE reconstruction ceiling | 27.96 | 0.844 | 0.031 | – |
+| **pixel DiT, 1 step (ours)** | **28.05** | **0.860** | 0.111 | **13.6** |
+| latent DiT, 1 step | 25.72 | 0.781 | 0.106 | 45.8 |
+| pixel DiT, 2 steps | 27.56 | 0.849 | 0.092 | 25.9 |
+| latent DiT, 2 steps | 25.53 | 0.775 | 0.099 | 58.3 |
+| pixel DiT, 4 steps | 26.97 | 0.835 | 0.076 | 52.7 |
+| latent DiT, 4 steps | 25.13 | 0.761 | 0.090 | 80.6 |
+| pixel DiT, 8 steps | 26.55 | 0.823 | **0.067** | 104.2 |
+| latent DiT, 8 steps | 24.60 | 0.743 | 0.090 | 125.3 |
+
+**Findings.** At 128 px the VAE is the bottleneck: encode→decode of the ground truth alone (27.96 dB) is below the pixel model's single-step output, so no latent model could match it in fidelity here. With everything else equal the pixel model wins by +2.3 dB / +0.08 SSIM at one step; perceptual quality is close at 1–2 steps (the VAE decoder synthesises plausible texture) but the latent model plateaus at LPIPS 0.090 while the pixel model reaches 0.067. The ~32 ms latency gap is the VAE encode/decode — the cost this project set out to remove. Caveats: the SD-VAE is designed for 256–1024 px images, so its f8 compression is harshest at this resolution (the gap should shrink at higher resolution, although 128-px face/mouth crops are exactly the regime of lip-sync refiners); the latent baseline reuses the pixel recipe without separate tuning, but the ceiling argument makes the fidelity conclusion independent of tuning.
+
 ## Layout
 
 ```
-PixelStream_SR_colab.ipynb   the whole project (data → model → training → evaluation → video demo → drift analysis)
-results/                  summary.md, results.json, video_results.json, qualitative.png, demo_1step.gif, demo_4step.gif
+PixelStream_SR_colab.ipynb   the whole project (data → model → training → evaluation → video demo → drift analysis → latent baseline)
+results/                  summary.md, summary_norepa.md, results.json, video_results.json, pixel_vs_latent.json, qualitative.png, pixel_vs_latent.png, demo_1step.gif, demo_4step.gif
 ```
 
 ## Related work
@@ -83,7 +104,7 @@ x-prediction pixel DiTs (JiT, 2025); representation alignment for diffusion tran
 
 ## Limitations and next steps
 
-128 px, faces only, synthetic motion for the video metric; recurrence needs training on own outputs; scale to 256 px (patch 16, same token count), real talking-head video (HDTF / CelebV-HQ), a latent-DiT baseline of equal size, and an audio / lip-mask condition to turn the same model into a VAE-free lip-sync editor.
+128 px, faces only, synthetic motion for the video metric; recurrence needs training on own outputs; scale to 256 px (patch 16, same token count), real talking-head video (HDTF / CelebV-HQ), the latent comparison repeated at 256–512 px, and an audio / lip-mask condition to turn the same model into a VAE-free lip-sync editor.
 
 ## License
 
