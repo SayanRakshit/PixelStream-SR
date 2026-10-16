@@ -1,0 +1,46 @@
+{
+ "1-step": {
+  "per-frame (indep. noise)": {
+   "flicker": 4.765303870663047,
+   "psnr": 28.42874590555827
+  },
+  "shared noise only": {
+   "flicker": 3.7071969732642174,
+   "psnr": 28.127829869588215
+  },
+  "ours: recurrent + shared": {
+   "flicker": 2.7770523261278868,
+   "psnr": 27.500417709350586
+  },
+  "bicubic": {
+   "flicker": 2.547727981582284,
+   "psnr": 26.74776331583659
+  },
+  "ground truth": {
+   "flicker": 1.2585965287871659,
+   "psnr": 100.0
+  }
+ },
+ "4-step": {
+  "per-frame (indep. noise)": {
+   "flicker": 7.526356680318713,
+   "psnr": 27.05979601542155
+  },
+  "shared noise only": {
+   "flicker": 4.740244532003999,
+   "psnr": 26.74378204345703
+  },
+  "ours: recurrent + shared": {
+   "flicker": 9.273787122219801,
+   "psnr": 20.531452814737957
+  },
+  "bicubic": {
+   "flicker": 2.547727981582284,
+   "psnr": 26.74776331583659
+  },
+  "ground truth": {
+   "flicker": 1.2585965287871659,
+   "psnr": 100.0
+  }
+ }
+}
